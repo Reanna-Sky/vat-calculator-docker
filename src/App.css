@@ -4,7 +4,7 @@
 }
 
 .colour-border{
-  border: 3px solid purple;
+  border: 4px dashed purple;
   padding: 10px;
 }
 
