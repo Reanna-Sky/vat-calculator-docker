@@ -21,6 +21,7 @@ RUN npm run build
 
 # stage 2  - because its a new from this kicks a new image 
 FROM nginx:1.28-alpine
+
 COPY --from=stage1 /app/build /usr/share/nginx/html
 
 

@@ -1,0 +1,53 @@
+# deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: calc
+  labels:
+    app: calc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: calc
+      
+  template:
+    metadata:
+      labels:
+        app: calc
+        tier: calc
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: calc
+          image: dockerid/image:latest
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: "8Mi"
+              cpu: "50m"
+              ephemeral-storage: "2Gi"
+            limits:
+              memory: "16Mi"
+              cpu: "100m"
+              ephemeral-storage: "4Gi"
+          ports:
+          - containerPort: 80
+            name: calc          
+    
+---
+# service - how to allow access. 
+apiVersion: v1
+kind: Service
+metadata:
+  name: calc
+  labels:
+    app: calc
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: calc
+    tier: calc
+  type: LoadBalancer # redirects traffic to different pobs depending on load

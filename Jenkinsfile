@@ -1,11 +1,46 @@
 pipeline{
  environment {
- registry = "reannagibson/vatcal"
+        dockerUserName="reannagibson"
+        credentialsIdGCP = "k8s"
+        namespace = "ns-5"
+        // e.g. ns-1 for learner1, ns-2 for learner2
+        projectId= "sky-hybrid-cohort-2"
+        
+        imageName = "vatcalc"
+        registry = "${dockerUserName}/${imageName}"
         registryCredentials = "dockerhub_id"
-        dockerImage = ""
+        clusterName = "prod-gke"
+        location = "europe-west1"
     }
+
     agent any
         stages {
+           stage('Install Dependencies') {
+                steps {
+                // Install the ReactJS dependencies
+                sh "npm install"
+                }
+            }
+            stage('Run Tests') {
+                steps {
+                // Run the ReactJS tests
+                sh "npm test"
+                }
+            }
+            stage('SonarQube Analysis') {
+                environment {
+                    scannerHome = tool 'sonarqube'
+                }
+                steps {
+                    withSonarQubeEnv('sonar-qube-1') {        
+                    sh "${scannerHome}/bin/sonar-scanner"
+                    }
+                    timeout(time: 10, unit: 'MINUTES'){
+                    waitForQualityGate abortPipeline: true
+                    }
+                }
+            }
+         
             stage ('Build Docker Image'){
                 steps{
                     script {
@@ -24,6 +59,21 @@ pipeline{
                     }
                 }
             }
+// google k8s engine.
+// This is using sed (stream editor) to find the textstring "dockerid/image" and then replace it in a file called deployment.yaml. 
+            stage('Deploy to GKE') {
+                steps{
+                    sh "sed -i 's|dockerid/image:latest|${dockerUserName}/${imageName}:${env.BUILD_ID}|g' deployment.yaml"
+                    step([$class: 'KubernetesEngineBuilder', 
+                    projectId: projectId, 
+                    clusterName: clusterName, 
+                    location: location, 
+                    namespace: namespace,
+                    manifestPattern: 'deployment.yaml', 
+                    credentialsId: credentialsIdGCP, 
+                    verifyDeployments: true])
+                }
+            }
 
             stage ("Clean up"){
                 steps {
@@ -34,3 +84,50 @@ pipeline{
             }
         }
 }
+
+
+// pipeline{
+//  environment {
+//     // This is dockerhub username/the name of the docker repo(what we want to call it)
+//  registry = "reannagibson/vatcal"
+//     //  name of the credentials we created in jenkins
+//         registryCredentials = "dockerhub_id"
+//         dockerImage = ""
+//     }
+
+//     agent any
+//         stages {
+//             // stages can be called anything.
+//             stage ('Build Docker Image'){
+//                 steps{
+//                     script {
+//                         // docker object and then use build method to build the image(name)
+//                         dockerImage = docker.build(registry)
+//                     }
+//                 }
+//             }
+
+//             stage ("Push to Docker Hub"){
+//                 steps {
+//                     script {
+//                         // this is logging in. by using "" we are using dockerhub public registry.
+//                         docker.withRegistry('', registryCredentials) {
+//                             // pust tag as build number and then the second push is to make sure the newest one has latest. 
+//                             dockerImage.push("${env.BUILD_NUMBER}")
+//                             dockerImage.push("latest")
+//                         }
+//                     }
+//                 }
+//             }
+
+//             stage ("Clean up"){
+//                 steps {
+//                     script {
+//                         // 
+//                         sh 'docker image prune --all --force --filter "until=48h"'
+//                            }
+//                 }
+//             }
+//         }
+// }
+
